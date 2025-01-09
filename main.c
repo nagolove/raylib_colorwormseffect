@@ -12,20 +12,16 @@ https://github.com/turborium/ColorWormsEffect
 */
  
 const int
-    ExpectedFps = 30,
-    BitmapDefaultWidth = 240,
-    BitmapDefaultHeight = 180,
-    DisplayScale = 5,
-    ParticleScale = 16,
+    ParticleScale = 1,
     ParticleIterationCount = 120,
-    ParticleGlowSize = 3,
+    ParticleGlowSize = 15,
     ParticleSwapDirectionRarity = 20,
-    BlurIterationCount = 2400,
+    BlurIterationCount = 3400,
     ParticleRecolorRarity = 70 + 60,
-    ParticleMinValue = 1,
-    ParticleMaxValue = 9,
-    ParticleGlowMinValue = 1,
-    ParticleGlowMaxValue = 7,
+    ParticleMinValue = 10,
+    ParticleMaxValue = 255,
+    ParticleGlowMinValue = 10,
+    ParticleGlowMaxValue = 255,
     FadeRValue = 3,
     FadeGValue = 4,
     FadeBValue = 2;
@@ -42,7 +38,7 @@ typedef struct Particle {
 } Particle;
 
 Particle particles[ParticleCount] = {};
-Image bitmap;
+Image bitmap = {};
 
 int RandomRange(int r_start, int r_end) {
     assert(r_start <= r_end);
@@ -51,17 +47,17 @@ int RandomRange(int r_start, int r_end) {
 
 void reset_effect() {
     for(int i = 0; i < ParticleCount; i++) {
-    for(int j = 0; j < ParticleStepCount; j++) {
-      particles[i].steps[j] = -1;// ничего
-    }
-    particles[i].x = bitmap.width * ParticleScale / 2;
-    particles[i].y = bitmap.height * ParticleScale / 2;
-    particles[i].ParticleRValue = RandomRange(ParticleMinValue, ParticleMaxValue);
-    particles[i].ParticleGValue = RandomRange(ParticleMinValue, ParticleMaxValue);
-    particles[i].ParticleBValue = RandomRange(ParticleMinValue, ParticleMaxValue);
-    particles[i].ParticleGlowRValue = RandomRange(ParticleGlowMinValue, ParticleGlowMaxValue);
-    particles[i].ParticleGlowGValue = RandomRange(ParticleGlowMinValue, ParticleGlowMaxValue);
-    particles[i].ParticleGlowBValue = RandomRange(ParticleGlowMinValue, ParticleGlowMaxValue);
+        for(int j = 0; j < ParticleStepCount; j++) {
+            particles[i].steps[j] = -1;// ничего
+        }
+        particles[i].x = bitmap.width * ParticleScale / 2;
+        particles[i].y = bitmap.height * ParticleScale / 2;
+        particles[i].ParticleRValue = RandomRange(ParticleMinValue, ParticleMaxValue);
+        particles[i].ParticleGValue = RandomRange(ParticleMinValue, ParticleMaxValue);
+        particles[i].ParticleBValue = RandomRange(ParticleMinValue, ParticleMaxValue);
+        particles[i].ParticleGlowRValue = RandomRange(ParticleGlowMinValue, ParticleGlowMaxValue);
+        particles[i].ParticleGlowGValue = RandomRange(ParticleGlowMinValue, ParticleGlowMaxValue);
+        particles[i].ParticleGlowBValue = RandomRange(ParticleGlowMinValue, ParticleGlowMaxValue);
     }
 }
 
@@ -69,14 +65,14 @@ int Max(int a, int b) {
     return a > b ? a : b;
 }
 
-void fade(Image *data) {
-    for(int y = 0; y < data->height; y++) {
-        for (int x = 0; x < data->width; x++) {
-            Color Pixel = GetImageColor(*data, x, y);
+void fade() {
+    for(int y = 0; y < bitmap.height; y++) {
+        for (int x = 0; x < bitmap.width; x++) {
+            Color Pixel = GetImageColor(bitmap, x, y);
             Pixel.r = Max(0, Pixel.r - FadeRValue);
             Pixel.g = Max(0, Pixel.g - FadeGValue);
             Pixel.b = Max(0, Pixel.b - FadeBValue);
-            ImageDrawPixel(data, x, y, Pixel);
+            ImageDrawPixel(&bitmap, x, y, Pixel);
         }
     }
 }
@@ -116,16 +112,16 @@ void PaintAndUpdateParticle(Image *data, Particle *particle) {
         Pixel.b = Min(255, Pixel.b + particle->ParticleGlowBValue);
 
         ImageDrawPixel(
-                data,
-                particle->x / ParticleScale + X,
-                particle->y / ParticleScale + Y,
-                Pixel
-                );
+            data,
+            particle->x / ParticleScale + X,
+            particle->y / ParticleScale + Y,
+            Pixel
+        );
 
         // рисуем точку
         Pixel = GetImageColor(
-                *data, particle->x / ParticleScale, particle->y / ParticleScale
-                );
+            *data, particle->x / ParticleScale, particle->y / ParticleScale
+        );
         Pixel.r = Min(255, Pixel.r + particle->ParticleRValue);
         Pixel.g = Min(255, Pixel.g + particle->ParticleGValue);
         Pixel.b = Min(255, Pixel.b + particle->ParticleBValue);
@@ -139,7 +135,7 @@ void PaintAndUpdateParticle(Image *data, Particle *particle) {
 
         // генерация неправления
         if (Random(ParticleSwapDirectionRarity) == 0) {
-            particle->steps[Random(ParticleStepCount) - 1] = Random(4);
+            particle->steps[Random(ParticleStepCount)] = Random(4);
 
             // сдвиг
             switch (particle->steps[Index]) {
@@ -214,78 +210,83 @@ void PaintAndUpdateParticle(Image *data, Particle *particle) {
     }
 }
 
-void paint() {
+void blur() {
+    for (int i = 1; i < BlurIterationCount; i++) {
+        int R = 0;
+        int G = 0;
+        int B = 0;
+        int X = Random(bitmap.width);
+        int Y = Random(bitmap.height);
+        Color Pixel = { .a = 128 };
+
+        if ( X >= 1 ) {
+            Pixel = GetImageColor(bitmap, X - 1, Y);
+            R = R + Pixel.r;
+            G = G + Pixel.g;
+            B = B + Pixel.b;
+        }
+        if ( X < bitmap.width - 1 ) {
+            Pixel = GetImageColor(bitmap, X + 1, Y);
+            R = R + Pixel.r;
+            G = G + Pixel.g;
+            B = B + Pixel.b;
+        }
+        if ( Y >= 1 ) {
+            Pixel = GetImageColor(bitmap, X, Y - 1);
+            R = R + Pixel.r;
+            G = G + Pixel.g;
+            B = B + Pixel.b;
+        }
+        if ( Y < bitmap.height - 1 ) {
+            Pixel = GetImageColor(bitmap, X, Y + 1);
+            R = R + Pixel.r;
+            G = G + Pixel.g;
+            B = B + Pixel.b;
+        }
+
+        Pixel.r = R / 4;
+        Pixel.g = G / 4;
+        Pixel.b = B / 4;
+
+        ImageDrawPixel(&bitmap, X, Y, Pixel);
+    }
+}
+
+void draw() {
     for (int i = 0; i < ParticleCount; i++) {
         PaintAndUpdateParticle(&bitmap, &particles[i]);
     }
 }
 
-void blur() {
-    /*
-  var
-    R, G, B: Integer;
-    X, Y: Integer;
-    I: Integer;
-    Pixel: TPixelRec;
-    */
-        for (int i = 1; i < BlurIterationCount; i++) {
-      int R = 0;
-      int G = 0;
-      int B = 0;
-      int X = Random(bitmap.width);
-      int Y = Random(bitmap.height);
-
-      /*
-      if X >= 1 then
-      begin
-        Pixel := Data.GetPixel(X - 1, Y);
-        R := R + Pixel.R;
-        G := G + Pixel.G;
-        B := B + Pixel.B;
-      end;
-      if X < Data.Width - 1 then
-      begin
-        Pixel := Data.GetPixel(X + 1, Y);
-        R := R + Pixel.R;
-        G := G + Pixel.G;
-        B := B + Pixel.B;
-      end;
-      if Y >= 1 then
-      begin
-        Pixel := Data.GetPixel(X, Y - 1);
-        R := R + Pixel.R;
-        G := G + Pixel.G;
-        B := B + Pixel.B;
-      end;
-      if Y < Data.Height - 1 then
-      begin
-        Pixel := Data.GetPixel(X, Y + 1);
-        R := R + Pixel.R;
-        G := G + Pixel.G;
-        B := B + Pixel.B;
-      end;
-      Pixel.R := R div 4;
-      Pixel.G := G div 4;
-      Pixel.B := B div 4;
-      ImageDrawPixel(bitmap, X, Y, Pixel);
-        }
-        */
+void paint() {
+    fade();
+    draw();
+    blur();
 }
 
 int main() {
-
     int scrw = 1920, scrh = 1080;
     InitWindow(scrw, scrh, "color worms");
-    SetTargetFPS(120);
-    bitmap = GenImageColor(scrw, scrh, RAYWHITE);
+    SetTargetFPS(30);
+    bitmap = GenImageColor(scrw, scrh, BLACK);
+    reset_effect();
+    SetTraceLogLevel(LOG_FATAL);
+
+    Texture2D t = LoadTextureFromImage(bitmap);
 
     while (!WindowShouldClose()) {
-        ClearBackground(RAYWHITE);                          // Set background color (framebuffer clear color)
-        BeginDrawing();                                    // Setup canvas (framebuffer) to start drawing
-        EndDrawing();                                      // End canvas drawing and swap buffers (double buffering)
+        ClearBackground(BLACK); 
+        BeginDrawing();
+        paint();
+
+        UpdateTexture(t, bitmap.data);
+        DrawTexture(t, 0, 0, WHITE);
+
+        EndDrawing();
     }
 
     UnloadImage(bitmap);
+    UnloadTexture(t);
 
     CloseWindow();
     return EXIT_SUCCESS;
