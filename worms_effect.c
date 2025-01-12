@@ -2,52 +2,18 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <omp.h>
 
 /*
 Original coded by `PetrTurbo` aka turborium
 https://github.com/turborium/ColorWormsEffect
 */
  
-/*#define ParticleStepCount 70 + 90*/
-//#define ParticleCount 34
-
-/*
-const int
-    ParticleScale = 1,
-    ParticleIterationCount = 120,
-    ParticleGlowSize = 15,
-    ParticleSwapDirectionRarity = 20,
-    BlurIterationCount = 3400,
-    ParticleRecolorRarity = 70 + 60,
-    ParticleMinValue = 10,
-    ParticleMaxValue = 255,
-    ParticleGlowMinValue = 10,
-    ParticleGlowMaxValue = 255,
-    FadeRValue = 3,
-    FadeGValue = 4,
-    FadeBValue = 2;
-*/
-
-/*
-typedef struct WormsEffectOpts {
-    int iteration_count,
-        glow_size,
-        swap_direction_rarity,
-        blur_iteration_count,
-        recolor_rarity,
-        min_value,
-        max_value,
-        glow_min_Value,
-        glow_max_Value;
-    Color fade_value;
-} WormsEffectOpts;
-*/
-
 static const WormsEffectOpts opts_default = {
     .iteration_count = 120,
     .glow_size = 15,
     .swap_direction_rarity = 20,
-    .blur_iteration_count = 3400,
+    .blur_iteration_count = 6400,
     .recolor_rarity = 130,
     .min_value = 10,
     .max_value = 255,
@@ -61,10 +27,10 @@ static const WormsEffectOpts opts_default = {
 };
 
 typedef struct Particle {
-    int x, y;
     int *steps;
-    int r, g, b;
-    int glow_r, glow_g, glow_b;
+    int x, y,
+        r, g, b,
+        glow_r, glow_g, glow_b;
 } Particle;
 
 typedef struct WormsEffect {
@@ -73,9 +39,6 @@ typedef struct WormsEffect {
     Image           bitmap;
     WormsEffectOpts opts;
 } WormsEffect;
-
-/*Particle particles[ParticleCount] = {};*/
-/*Image bitmap = {};*/
 
 int RandomRange(int r_start, int r_end) {
     assert(r_start <= r_end);
@@ -87,17 +50,18 @@ void worms_effect_reset(WormsEffect_t e) {
     WormsEffectOpts o = e->opts;
     Image *bitmap = &e->bitmap;
     for(int i = 0; i < e->particles_count; i++) {
+        Particle *p = &particles[i];
         for(int j = 0; j < e->step_count; j++) {
-            particles[i].steps[j] = -1;// ничего
+            p->steps[j] = 0;// ничего
         }
-        particles[i].x = RandomRange(0, bitmap->width);
-        particles[i].y = RandomRange(0, bitmap->height);
-        particles[i].r = RandomRange(o.min_value, o.max_value);
-        particles[i].g = RandomRange(o.min_value, o.max_value);
-        particles[i].b = RandomRange(o.min_value, o.max_value);
-        particles[i].glow_r = RandomRange(o.glow_min, o.glow_max);
-        particles[i].glow_g = RandomRange(o.glow_min, o.glow_max);
-        particles[i].glow_b = RandomRange(o.glow_min, o.glow_max);
+        p->x = RandomRange(0, bitmap->width);
+        p->y = RandomRange(0, bitmap->height);
+        p->r = RandomRange(o.min_value, o.max_value);
+        p->g = RandomRange(o.min_value, o.max_value);
+        p->b = RandomRange(o.min_value, o.max_value);
+        p->glow_r = RandomRange(o.glow_min, o.glow_max);
+        p->glow_g = RandomRange(o.glow_min, o.glow_max);
+        p->glow_b = RandomRange(o.glow_min, o.glow_max);
     }
 }
 
@@ -143,10 +107,12 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
     WormsEffectOpts o = e->opts;
     int ParticleGlowSize = o.glow_size,
         ParticleScale = 1;
+
     for (int i = 0; i < o.iteration_count; i++) {
         // рисуем свечение
         int X = Random(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
         int Y = Random(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
+
         Color Pixel = GetImageColor(
             *data, 
             particle->x / ParticleScale + X,
@@ -181,22 +147,10 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
 
         // сдвиг
         switch (particle->steps[Index]) {
-            case 0:
-                particle->x = particle->x + 1;
-                particle->y = particle->y + 1;
-                break;
-            case 1:
-                particle->x = particle->x - 1;
-                particle->y = particle->y + 1;
-                break;
-            case 2:
-                particle->x = particle->x + 1;
-                particle->y = particle->y - 1;
-                break;
-            case 3:
-                particle->x = particle->x - 1;
-                particle->y = particle->y - 1;
-                break;
+            case 0: particle->x += 1; particle->y += 1; break;
+            case 1: particle->x += -1; particle->y += 1; break;
+            case 2: particle->x += 1; particle->y += -1; break;
+            case 3: particle->x += -1; particle->y += -1; break;
         }
 
         // коррекция
@@ -223,30 +177,33 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
         if (Random(o.recolor_rarity) != 0) 
             continue;
 
+        // Выбираем случайную частицу из массива частиц
         int N = Random(e->particles_count);
         Particle *p = &e->particles[N];
         if (Random(2) == 0) {
+            // Изменяем основной цвет частицы (r, g, b)
             switch (Random(3)) {
                 case 0: 
-                    e->particles[N].r = e_range(p->r + Random(3) - 1, o.min_value, o.max_value);
+                    p->r = e_range(p->r + Random(3) - 1, o.min_value, o.max_value);
                     break;
                 case 1: 
-                    e->particles[N].g = e_range(p->g + Random(3) - 1, o.min_value, o.max_value);
+                    p->g = e_range(p->g + Random(3) - 1, o.min_value, o.max_value);
                     break;
                 case 2: 
-                    e->particles[N].b = e_range(p->b + Random(3) - 1, o.min_value, o.max_value);
+                    p->b = e_range(p->b + Random(3) - 1, o.min_value, o.max_value);
                     break;
             }
         } else {
+            // Изменяем цвет свечения частицы (glow_r, glow_g, glow_b)
             switch (Random(3)) {
                 case 0: 
-                    e->particles[N].glow_r = e_range(p->glow_r + Random(3) - 1, o.glow_min, o.glow_max);
+                    p->glow_r = e_range(p->glow_r + Random(3) - 1, o.glow_min, o.glow_max);
                     break;
                 case 1: 
-                    e->particles[N].glow_g = e_range(p->glow_g + Random(3) - 1, o.glow_min, o.glow_max);
+                    p->glow_g = e_range(p->glow_g + Random(3) - 1, o.glow_min, o.glow_max);
                     break;
                 case 2: 
-                    e->particles[N].glow_b = e_range(p->glow_b + Random(3) - 1, o.glow_min, o.glow_max);
+                    p->glow_b = e_range(p->glow_b + Random(3) - 1, o.glow_min, o.glow_max);
                     break;
             }
         }
@@ -256,39 +213,35 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
 
 void blur(WormsEffect_t e) {
     Image *bitmap = &e->bitmap;
+
+    // Выполняем размытие заданное количество раз
     for (int i = 1; i < e->opts.blur_iteration_count; i++) {
-        int R = 0;
-        int G = 0;
-        int B = 0;
-        int X = Random(bitmap->width);
-        int Y = Random(bitmap->height);
+        // Инициализируем суммы цветовых каналов (R, G, B) для вычисления среднего
+        int R = 0, G = 0, B = 0,
+        // Выбираем случайный пиксель на изображении
+            X = Random(bitmap->width),
+            Y = Random(bitmap->height);
         Color Pixel = { .a = 128 };
 
+        // Добавляем значения соседних пикселей для вычисления среднего цвета
         if ( X >= 1 ) {
             Pixel = GetImageColor(*bitmap, X - 1, Y);
-            R = R + Pixel.r;
-            G = G + Pixel.g;
-            B = B + Pixel.b;
+            R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
         if ( X < bitmap->width - 1 ) {
             Pixel = GetImageColor(*bitmap, X + 1, Y);
-            R = R + Pixel.r;
-            G = G + Pixel.g;
-            B = B + Pixel.b;
+            R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
         if ( Y >= 1 ) {
             Pixel = GetImageColor(*bitmap, X, Y - 1);
-            R = R + Pixel.r;
-            G = G + Pixel.g;
-            B = B + Pixel.b;
+            R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
         if ( Y < bitmap->height - 1 ) {
             Pixel = GetImageColor(*bitmap, X, Y + 1);
-            R = R + Pixel.r;
-            G = G + Pixel.g;
-            B = B + Pixel.b;
+            R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
 
+        // Рассчитываем среднее значение для каждого цветового канала
         Pixel.r = R / 4;
         Pixel.g = G / 4;
         Pixel.b = B / 4;
@@ -298,16 +251,17 @@ void blur(WormsEffect_t e) {
 }
 
 static void draw(WormsEffect_t e) {
+/*#pragma omp parallel for*/
     for (int i = 0; i < e->particles_count; i++) {
         PaintAndUpdateParticle(e, &e->particles[i]);
     }
 }
 
-WormsEffect_t worms_effect_new() {
-    int scrw = 1920, scrh = 1090;
+WormsEffect_t worms_effect_new(int w, int h) {
     WormsEffect_t e = calloc(1, sizeof(*e));
 
     e->particles_count = 100;
+    e->step_count = 30;
     e->particles = calloc(e->particles_count, sizeof(e->particles[0]));
 
     for (int i = 0; i < e->particles_count; i++) {
@@ -315,7 +269,7 @@ WormsEffect_t worms_effect_new() {
         e->particles[i].steps = calloc(e->step_count, sz);
     }
 
-    e->bitmap = GenImageColor(scrw, scrh, BLACK);
+    e->bitmap = GenImageColor(w, h, BLACK);
     e->opts = opts_default;
 
     worms_effect_reset(e);
@@ -335,8 +289,8 @@ void worms_effect_free(WormsEffect_t e) {
     if (e->particles) {
 
         for (int i = 0; i < e->particles_count; i++) {
-            size_t sz = sizeof(e->particles[0].steps[0]);
-            e->particles[i].steps = calloc(e->step_count, sz);
+            if (e->particles[i].steps)
+                free(e->particles[i].steps);
         }
 
         free(e->particles);
@@ -356,6 +310,7 @@ WormsEffectOpts worm_effect_options_default() {
 }
 
 void worms_effect_options_set(WormsEffect_t e, WormsEffectOpts opt) {
+    e->opts = opt;
 }
 
 WormsEffectOpts worms_effect_options_get(WormsEffect_t e) {

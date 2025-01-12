@@ -1,6 +1,6 @@
 
 CC=gcc
-CFLAGS=-g -fsanitize=address
+CFLAGS=-fopenmp -O3 -g -fsanitize=address
 LDFLAGS=-lm -lraylib
 EXECUTABLE=colorworms
 AR = ar

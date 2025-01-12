@@ -5,11 +5,17 @@
 #include "worms_effect.h"
 
 int main() {
+#ifdef _OPENMP
+    printf("OpenMP is enabled!\n");
+#else
+    printf("OpenMP is not enabled.\n");
+#endif
+
     int scrw = 1920, scrh = 1080;
-    WormsEffect_t e = worms_effect_new();
+    WormsEffect_t e = worms_effect_new(scrw, scrh);
 
     InitWindow(scrw, scrh, "color worms");
-    SetTargetFPS(30);
+    SetTargetFPS(60);
 
     SetTraceLogLevel(LOG_FATAL);
 
@@ -27,6 +33,10 @@ int main() {
         DrawTexture(t, 0, 0, WHITE);
 
         EndDrawing();
+
+        char title[128] = {};
+        sprintf(title, "fps %d", GetFPS());
+        SetWindowTitle(title);
     }
 
     UnloadTexture(t);
