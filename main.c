@@ -12,7 +12,10 @@ int main() {
 #endif
 
     int scrw = 1920, scrh = 1080;
-    WormsEffect_t e = worms_effect_new(scrw, scrh);
+    WormsEffect_t e = worms_effect_new((WormsEffectInitOpts) { 
+        .w = scrw,
+        .h = scrh,
+    });
 
     InitWindow(scrw, scrh, "color worms");
     SetTargetFPS(60);

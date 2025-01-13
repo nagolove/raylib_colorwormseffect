@@ -351,6 +351,7 @@ WormsEffect_t worms_effect_new(WormsEffectInitOpts init_opts) {
 }
 
 void worms_effect_draw(WormsEffect_t e) {
+    assert(e);
     e->fade(e);
     e->draw(e);
     e->blur(e);
