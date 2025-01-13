@@ -146,13 +146,103 @@ static void recolor(Particle *p, WormsEffectOpts *o) {
     }
 }
 
-void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
+void PaintAndUpdateParticle_st(WormsEffect_t e, Particle *particle) {
     Image *data = &e->bitmap;
     int Index = 0;
     WormsEffectOpts o = e->opts;
     int ParticleGlowSize = o.glow_size,
         ParticleScale = 1;
 
+    for (int i = 0; i < o.iteration_count; i++) {
+        // рисуем свечение
+        int X = rnd(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
+        int Y = rnd(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
+
+        Color Pixel = GetImageColor(
+            *data, 
+            particle->x / ParticleScale + X,
+            particle->y / ParticleScale + Y
+        );
+
+        Pixel.r = Min(255, Pixel.r + particle->glow_r);
+        Pixel.g = Min(255, Pixel.g + particle->glow_g);
+        Pixel.b = Min(255, Pixel.b + particle->glow_b);
+
+        int x = particle->x / ParticleScale + X;
+        int y = particle->y / ParticleScale + Y;
+        ImageDrawPixel(data, x, y, Pixel);
+
+        // рисуем точку
+        x = particle->x / ParticleScale;
+        y = particle->y / ParticleScale;
+        Pixel = GetImageColor(*data, x, y);
+        Pixel.r = Min(255, Pixel.r + particle->r);
+        Pixel.g = Min(255, Pixel.g + particle->g);
+        Pixel.b = Min(255, Pixel.b + particle->b);
+
+        x = particle->x / ParticleScale;
+        y = particle->y / ParticleScale;
+        ImageDrawPixel(data, x, y, Pixel);
+
+        // генерация неправления
+        if (rnd(o.swap_direction_rarity) != 0) 
+            continue;
+
+        particle->steps[rnd(e->step_count)] = rnd(4);
+
+        // сдвиг
+        switch (particle->steps[Index]) {
+            case 0: particle->x += 1; particle->y += 1; break;
+            case 1: particle->x += -1; particle->y += 1; break;
+            case 2: particle->x += 1; particle->y += -1; break;
+            case 3: particle->x += -1; particle->y += -1; break;
+        }
+
+        // коррекция
+        if ( particle->x < 0 ) {
+            particle->x = data->width * ParticleScale - 1;
+        };
+        if ( particle->x >= data->width * ParticleScale ) {
+            particle->x = 0;
+        };
+        if ( particle->y < 0 ) {
+            particle->y = data->height * ParticleScale - 1;
+        };
+        if ( particle->y >= data->height * ParticleScale ) {
+            particle->y = 0;
+        };
+
+        // следующий индекс
+        Index = Index + 1;
+        if (Index >= e->step_count) {
+            Index = 0;
+        }
+
+        // перекраска
+        if (rnd(o.recolor_rarity) != 0) 
+            continue;
+
+        // Выбираем случайную частицу из массива частиц
+        int N = rnd(e->particles_count);
+        Particle *p = &e->particles[N];
+        if (rnd(2) == 0) {
+            recolor(p, &o);
+        } else {
+            // Изменяем цвет свечения частицы (glow_r, glow_g, glow_b)
+            reglow(p, &o);
+        }
+
+    }
+}
+
+void PaintAndUpdateParticle_mt(WormsEffect_t e, Particle *particle) {
+    Image *data = &e->bitmap;
+    int Index = 0;
+    WormsEffectOpts o = e->opts;
+    int ParticleGlowSize = o.glow_size,
+        ParticleScale = 1;
+
+#pragma omp parallel for 
     for (int i = 0; i < o.iteration_count; i++) {
         // рисуем свечение
         int X = rnd(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
@@ -312,14 +402,14 @@ void blur_st(WormsEffect_t e) {
 
 static void draw_st(WormsEffect_t e) {
     for (int i = 0; i < e->particles_count; i++) {
-        PaintAndUpdateParticle(e, &e->particles[i]);
+        PaintAndUpdateParticle_st(e, &e->particles[i]);
     }
 }
 
 static void draw_mt(WormsEffect_t e) {
 #pragma omp parallel for
     for (int i = 0; i < e->particles_count; i++) {
-        PaintAndUpdateParticle(e, &e->particles[i]);
+        PaintAndUpdateParticle_mt(e, &e->particles[i]);
     }
 }
 
