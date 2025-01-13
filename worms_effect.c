@@ -15,10 +15,8 @@ static const WormsEffectOpts opts_default = {
     .swap_direction_rarity = 20,
     .blur_iteration_count = 6400,
     .recolor_rarity = 130,
-    .min_value = 10,
-    .max_value = 255,
-    .glow_min = 10,
-    .glow_max = 255,
+    .value = { 10, 255 },
+    .glow = { 10, 255 },
     .fade_value = {
         .r = 3,
         .g = 4,
@@ -60,12 +58,12 @@ void worms_effect_reset(WormsEffect_t e) {
         }
         p->x = RandomRange(0, bitmap->width);
         p->y = RandomRange(0, bitmap->height);
-        p->r = RandomRange(o.min_value, o.max_value);
-        p->g = RandomRange(o.min_value, o.max_value);
-        p->b = RandomRange(o.min_value, o.max_value);
-        p->glow_r = RandomRange(o.glow_min, o.glow_max);
-        p->glow_g = RandomRange(o.glow_min, o.glow_max);
-        p->glow_b = RandomRange(o.glow_min, o.glow_max);
+        p->r = RandomRange(o.value[0], o.value[1]);
+        p->g = RandomRange(o.value[0], o.value[1]);
+        p->b = RandomRange(o.value[0], o.value[1]);
+        p->glow_r = RandomRange(o.glow[0], o.glow[1]);
+        p->glow_g = RandomRange(o.glow[0], o.glow[1]);
+        p->glow_b = RandomRange(o.glow[0], o.glow[1]);
     }
 }
 
@@ -101,7 +99,7 @@ void fade_st(WormsEffect_t e) {
     }
 }
 
-int Random(int to) {
+int rnd(int to) {
     return rand() % to;
 }
 
@@ -110,13 +108,41 @@ int Min(int a, int b) {
 }
 
 // EnsureRange
-int e_range(int val, int min, int max) {
+int clamp(int val, int min, int max) {
     if (val < min)
         return min;
     else if (val > max)
         return max;
     else
         return val;
+}
+
+static void reglow(Particle *p, WormsEffectOpts *o) {
+    switch (rnd(3)) {
+        case 0: 
+            p->glow_r = clamp(p->glow_r + rnd(3) - 1, o->glow[0], o->glow[1]);
+            break;
+        case 1: 
+            p->glow_g = clamp(p->glow_g + rnd(3) - 1, o->glow[0], o->glow[1]);
+            break;
+        case 2: 
+            p->glow_b = clamp(p->glow_b + rnd(3) - 1, o->glow[0], o->glow[1]);
+            break;
+    }
+}
+
+static void recolor(Particle *p, WormsEffectOpts *o) {
+    switch (rnd(3)) {
+        case 0: 
+            p->r = clamp(p->r + rnd(3) - 1, o->value[0], o->value[1]);
+            break;
+        case 1: 
+            p->g = clamp(p->g + rnd(3) - 1, o->value[0], o->value[1]);
+            break;
+        case 2: 
+            p->b = clamp(p->b + rnd(3) - 1, o->value[0], o->value[1]);
+            break;
+    }
 }
 
 void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
@@ -128,8 +154,8 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
 
     for (int i = 0; i < o.iteration_count; i++) {
         // рисуем свечение
-        int X = Random(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
-        int Y = Random(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
+        int X = rnd(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
+        int Y = rnd(ParticleGlowSize * 2 + 1) - ParticleGlowSize;
 
         Color Pixel = GetImageColor(
             *data, 
@@ -158,10 +184,10 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
         ImageDrawPixel(data, x, y, Pixel);
 
         // генерация неправления
-        if (Random(o.swap_direction_rarity) != 0) 
+        if (rnd(o.swap_direction_rarity) != 0) 
             continue;
 
-        particle->steps[Random(e->step_count)] = Random(4);
+        particle->steps[rnd(e->step_count)] = rnd(4);
 
         // сдвиг
         switch (particle->steps[Index]) {
@@ -192,38 +218,17 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
         }
 
         // перекраска
-        if (Random(o.recolor_rarity) != 0) 
+        if (rnd(o.recolor_rarity) != 0) 
             continue;
 
         // Выбираем случайную частицу из массива частиц
-        int N = Random(e->particles_count);
+        int N = rnd(e->particles_count);
         Particle *p = &e->particles[N];
-        if (Random(2) == 0) {
-            // Изменяем основной цвет частицы (r, g, b)
-            switch (Random(3)) {
-                case 0: 
-                    p->r = e_range(p->r + Random(3) - 1, o.min_value, o.max_value);
-                    break;
-                case 1: 
-                    p->g = e_range(p->g + Random(3) - 1, o.min_value, o.max_value);
-                    break;
-                case 2: 
-                    p->b = e_range(p->b + Random(3) - 1, o.min_value, o.max_value);
-                    break;
-            }
+        if (rnd(2) == 0) {
+            recolor(p, &o);
         } else {
             // Изменяем цвет свечения частицы (glow_r, glow_g, glow_b)
-            switch (Random(3)) {
-                case 0: 
-                    p->glow_r = e_range(p->glow_r + Random(3) - 1, o.glow_min, o.glow_max);
-                    break;
-                case 1: 
-                    p->glow_g = e_range(p->glow_g + Random(3) - 1, o.glow_min, o.glow_max);
-                    break;
-                case 2: 
-                    p->glow_b = e_range(p->glow_b + Random(3) - 1, o.glow_min, o.glow_max);
-                    break;
-            }
+            reglow(p, &o);
         }
 
     }
@@ -237,8 +242,8 @@ void blur_mt(WormsEffect_t e) {
         // Инициализируем суммы цветовых каналов (R, G, B) для вычисления среднего
         int R = 0, G = 0, B = 0,
         // Выбираем случайный пиксель на изображении
-            X = Random(bitmap->width),
-            Y = Random(bitmap->height);
+            X = rnd(bitmap->width),
+            Y = rnd(bitmap->height);
         Color Pixel = { .a = 128 };
 
         // Добавляем значения соседних пикселей для вычисления среднего цвета
@@ -276,8 +281,8 @@ void blur_st(WormsEffect_t e) {
         // Инициализируем суммы цветовых каналов (R, G, B) для вычисления среднего
         int R = 0, G = 0, B = 0,
         // Выбираем случайный пиксель на изображении
-            X = Random(bitmap->width),
-            Y = Random(bitmap->height);
+            X = rnd(bitmap->width),
+            Y = rnd(bitmap->height);
         Color Pixel = { .a = 128 };
 
         // Добавляем значения соседних пикселей для вычисления среднего цвета

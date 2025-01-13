@@ -10,10 +10,10 @@ typedef struct WormsEffectOpts {
         swap_direction_rarity,
         blur_iteration_count,
         recolor_rarity,
-        min_value,
-        max_value,
-        glow_min,
-        glow_max;
+        // min, max
+        value[2],
+        // min, max
+        glow[2];
     Color fade_value;
 } WormsEffectOpts;
 
