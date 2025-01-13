@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-gcc main.c -lm -lraylib -g -fsanitize=address
