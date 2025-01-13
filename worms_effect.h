@@ -18,7 +18,7 @@ typedef struct WormsEffectOpts {
 } WormsEffectOpts;
 
 typedef struct WormsEffectInitOpts {
-    int  w, h;
+    int  w, h, particles_count, step_count;
     bool multithreads;
 } WormsEffectInitOpts;
 

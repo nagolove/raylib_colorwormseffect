@@ -15,6 +15,8 @@ int main() {
     WormsEffect_t e = worms_effect_new((WormsEffectInitOpts) { 
         .w = scrw,
         .h = scrh,
+        .particles_count = 20,
+        .step_count = 100,
     });
 
     InitWindow(scrw, scrh, "color worms");

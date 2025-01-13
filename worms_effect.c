@@ -323,12 +323,11 @@ static void draw_mt(WormsEffect_t e) {
     }
 }
 
-
 WormsEffect_t worms_effect_new(WormsEffectInitOpts init_opts) {
     WormsEffect_t e = calloc(1, sizeof(*e));
 
-    e->particles_count = 100;
-    e->step_count = 30;
+    e->particles_count = init_opts.particles_count;
+    e->step_count = init_opts.step_count;
     e->particles = calloc(e->particles_count, sizeof(e->particles[0]));
 
     for (int i = 0; i < e->particles_count; i++) {
