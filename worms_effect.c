@@ -74,7 +74,8 @@ int Max(int a, int b) {
 void fade_mt(WormsEffect_t e) {
     Image *bitmap = &e->bitmap;
     WormsEffectOpts o = e->opts;
-    for(int y = 0; y < bitmap->height; y++) {
+#pragma omp parallel for collapse(2)
+    for (int y = 0; y < bitmap->height; y++) {
         for (int x = 0; x < bitmap->width; x++) {
             Color Pixel = GetImageColor(*bitmap, x, y);
             Pixel.r = Max(0, Pixel.r - o.fade_value.r);
@@ -237,34 +238,31 @@ void PaintAndUpdateParticle(WormsEffect_t e, Particle *particle) {
 void blur_mt(WormsEffect_t e) {
     Image *bitmap = &e->bitmap;
 
-    // Выполняем размытие заданное количество раз
+#pragma omp parallel for
     for (int i = 1; i < e->opts.blur_iteration_count; i++) {
-        // Инициализируем суммы цветовых каналов (R, G, B) для вычисления среднего
-        int R = 0, G = 0, B = 0,
-        // Выбираем случайный пиксель на изображении
-            X = rnd(bitmap->width),
-            Y = rnd(bitmap->height);
+        int X = rnd(bitmap->width);
+        int Y = rnd(bitmap->height);
+        int R = 0, G = 0, B = 0;
+
         Color Pixel = { .a = 128 };
 
-        // Добавляем значения соседних пикселей для вычисления среднего цвета
-        if ( X >= 1 ) {
+        if (X >= 1) {
             Pixel = GetImageColor(*bitmap, X - 1, Y);
             R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
-        if ( X < bitmap->width - 1 ) {
+        if (X < bitmap->width - 1) {
             Pixel = GetImageColor(*bitmap, X + 1, Y);
             R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
-        if ( Y >= 1 ) {
+        if (Y >= 1) {
             Pixel = GetImageColor(*bitmap, X, Y - 1);
             R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
-        if ( Y < bitmap->height - 1 ) {
+        if (Y < bitmap->height - 1) {
             Pixel = GetImageColor(*bitmap, X, Y + 1);
             R += Pixel.r; G += Pixel.g; B += Pixel.b;
         }
 
-        // Рассчитываем среднее значение для каждого цветового канала
         Pixel.r = R / 4;
         Pixel.g = G / 4;
         Pixel.b = B / 4;
@@ -319,7 +317,7 @@ static void draw_st(WormsEffect_t e) {
 }
 
 static void draw_mt(WormsEffect_t e) {
-/*#pragma omp parallel for*/
+#pragma omp parallel for
     for (int i = 0; i < e->particles_count; i++) {
         PaintAndUpdateParticle(e, &e->particles[i]);
     }
